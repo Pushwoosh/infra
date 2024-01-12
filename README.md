@@ -9,7 +9,7 @@ go get github.com/pushwoosh/infra
 # Libraries
 
 All databases and brokers libraries have similar design: each library has `NewContainer` function that creates a container
-that holds names connections to the database.
+that holds named connections to the database.
 
 To create a new connection, call `Connect` method. To fetch a connection, call `Get` method.
 
