@@ -25,6 +25,13 @@ type ConnectionConfig struct {
 
 	// Max incoming grpc request size in megabytes
 	MaxGrpcRecvMsgSizeMB int `mapstructure:"max_grpc_recv_msg_size_mb"`
+
+	// TLSConfig: unused
+	TLS *TLSConfig `mapstructure:"tls"`
+}
+
+type TLSConfig struct {
+	Enabled bool
 }
 
 type ConnectionsConfig map[string]*ConnectionConfig

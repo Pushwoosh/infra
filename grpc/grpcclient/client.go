@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 )
 
@@ -85,6 +86,12 @@ func (cont *Container) Connect(name string, cfg *ConnectionConfig) error {
 
 	options := []grpc.DialOption{
 		grpc.WithChainUnaryInterceptor(unaryInterceptors...),
+	}
+
+	if cfg.TLS == nil || !cfg.TLS.Enabled {
+		options = append(options, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	} else {
+		panic("TLS is not supported yet")
 	}
 
 	// setup keepalive options. see keepalive.ClientParameters for details
