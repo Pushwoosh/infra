@@ -4,9 +4,10 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/pushwoosh/infra/log"
+
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/pkg/errors"
-	"github.com/pushwoosh/infra/log"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -15,7 +16,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-type GatewayStartupFunc func(gw *Gateway, endpoint string, dialOptions []grpc.DialOption)
+type GatewayStartupFunc func(gw *Gateway, endpoint string, dialOptions []grpc.DialOption) http.Handler
 
 type Gateway struct {
 	cfg *GrpcGatewayConfig
@@ -72,7 +73,10 @@ func (s *Gateway) Start(_ context.Context) error {
 		Handler: s.mux,
 	}
 
-	s.startupFunc(s, s.cfg.ForwardTo, s.grpcDialOptions)
+	handler := s.startupFunc(s, s.cfg.ForwardTo, s.grpcDialOptions)
+	if handler != nil {
+		s.srv.Handler = handler
+	}
 
 	go func() {
 		infralog.Debug("serving grpc gateway", zap.String("address", s.cfg.Listen))
