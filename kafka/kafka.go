@@ -34,6 +34,12 @@ func (cont *Container) AddConnection(name string, cfg *ConnectionConfig) error {
 	return nil
 }
 
+// Exists checks if a connection with the given name exists in the container.
+func (cont *Container) Exists(name string) bool {
+	_, ok := cont.cfg[name]
+	return ok
+}
+
 func getLogFunc() func(msg string, a ...interface{}) {
 	return func(msg string, a ...interface{}) {
 		infralog.Debug("kafka-go", zap.String("value", fmt.Sprintf(msg, a...)))
