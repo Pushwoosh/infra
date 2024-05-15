@@ -29,8 +29,8 @@ type ConnectionConfig struct {
 	// TLSConfig: unused
 	TLS *TLSConfig `mapstructure:"tls"`
 
-	// IsLazy default false. Setting it to true will give you an opportunity not to connect immediately
-	IsLazy bool `mapstructure:"is_lazy"`
+	// Lazy default false. Setting it to true will give you an opportunity not to connect immediately
+	Lazy bool `mapstructure:"lazy"`
 }
 
 type TLSConfig struct {
