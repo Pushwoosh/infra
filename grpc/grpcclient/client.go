@@ -121,7 +121,7 @@ func (cont *Container) Connect(name string, cfg *ConnectionConfig) error {
 		return errors.Wrapf(err, "can't create grpc connection to \"%s\"", cfg.Address)
 	}
 
-	// if we got no lazy connection just try to connect and check WaitForStateChange
+	// try to connect immediately if lazy connection is disabled
 	if !cfg.Lazy {
 		ctx, cancel := context.WithTimeout(context.Background(), connectionTimeout)
 		defer cancel()
