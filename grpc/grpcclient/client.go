@@ -116,11 +116,11 @@ func (cont *Container) Connect(name string, cfg *ConnectionConfig) error {
 		options = append(options, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(cfg.MaxGrpcRecvMsgSizeMB*1024*1024)))
 	}
 
-	conn, err := grpc.Dial(cfg.Address, options...)
+	conn, err := getConnectionByLazyConfig(cfg.Address, cfg.IsLazy, options...)
 	if err != nil {
 		return errors.Wrapf(err, "can't create grpc connection to \"%s\"", cfg.Address)
 	}
-
+	
 	ctx, cancel := context.WithTimeout(context.Background(), connectionTimeout)
 	defer cancel()
 
@@ -145,4 +145,15 @@ func (cont *Container) Get(name string) grpc.ClientConnInterface {
 	defer cont.mu.RUnlock()
 
 	return cont.pool[name]
+}
+
+// getConnectionByLazyConfig returns same virtual connections, but with different methods of connect
+// If isLazy equals to false then it would immediately try to connect to target
+// If isLazy equals to true it would try to connect on the real request. Will respond with "connection: transport error" on fail
+func getConnectionByLazyConfig(target string, isLazy bool, options ...grpc.DialOption) (*grpc.ClientConn, error) {
+	if isLazy {
+		return grpc.NewClient(target, options...)
+	}
+
+	return grpc.Dial(target, options...)
 }
