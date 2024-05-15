@@ -116,18 +116,23 @@ func (cont *Container) Connect(name string, cfg *ConnectionConfig) error {
 		options = append(options, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(cfg.MaxGrpcRecvMsgSizeMB*1024*1024)))
 	}
 
-	conn, err := grpc.Dial(cfg.Address, options...)
+	conn, err := grpc.NewClient(cfg.Address, options...)
 	if err != nil {
 		return errors.Wrapf(err, "can't create grpc connection to \"%s\"", cfg.Address)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), connectionTimeout)
-	defer cancel()
+	// try to connect immediately if lazy connection is disabled
+	if !cfg.Lazy {
+		ctx, cancel := context.WithTimeout(context.Background(), connectionTimeout)
+		defer cancel()
 
-	conn.WaitForStateChange(ctx, connectivity.Idle) // do not check result, we are not interested in that change
-	stateChanged := conn.WaitForStateChange(ctx, connectivity.Connecting)
-	if !stateChanged || conn.GetState() != connectivity.Ready {
-		return errors.Wrap(ErrFailedToConnect, name)
+		conn.Connect()
+
+		conn.WaitForStateChange(ctx, connectivity.Idle) // do not check result, we are not interested in that change
+		stateChanged := conn.WaitForStateChange(ctx, connectivity.Connecting)
+		if !stateChanged || conn.GetState() != connectivity.Ready {
+			return errors.Wrap(ErrFailedToConnect, name)
+		}
 	}
 
 	cont.mu.Lock()
