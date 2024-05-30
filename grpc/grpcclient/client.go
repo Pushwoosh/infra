@@ -16,7 +16,10 @@ import (
 )
 
 const (
-	connectionTimeout = 5 * time.Second
+	defaultRetryDelay       = time.Second
+	defaultRetryMaxAttempts = 10
+	defaultRetryJitter      = 0.3
+	connectionTimeout       = 5 * time.Second
 )
 
 var ErrFailedToConnect = errors.New("failed to bring connection to ready state")
@@ -49,39 +52,53 @@ func (cont *Container) Connect(name string, cfg *ConnectionConfig) error {
 		grpc_prometheus.UnaryClientInterceptor,
 	}
 
-	if cfg.Retry != nil {
-		codes := grpc_retry.DefaultRetriableCodes
-		if cfg.Retry.Codes != nil {
-			codes = cfg.Retry.Codes
+	if cfg.Retry == nil {
+		cfg.Retry = &RetryConfig{
+			LinearBackoff: &LinearBackoffConfig{
+				Delay:       defaultRetryDelay,
+				MaxAttempts: defaultRetryMaxAttempts,
+				Jitter:      defaultRetryJitter,
+			},
 		}
+	}
 
-		if cfg.Retry.ExponentialBackoff != nil {
-			backoff := cfg.Retry.ExponentialBackoff
-			unaryInterceptors = append(unaryInterceptors,
-				grpc_retry.UnaryClientInterceptor(
-					grpc_retry.WithBackoff(grpc_retry.BackoffExponentialWithJitter(backoff.BaseDelay, backoff.Jitter)),
-					grpc_retry.WithMax(uint(backoff.MaxAttempts)),
-					grpc_retry.WithCodes(codes...),
-				),
-			)
-		} else if cfg.Retry.LinearBackoff != nil {
-			backoff := cfg.Retry.LinearBackoff
-			unaryInterceptors = append(unaryInterceptors,
-				grpc_retry.UnaryClientInterceptor(
-					grpc_retry.WithBackoff(grpc_retry.BackoffLinearWithJitter(backoff.Delay, backoff.Jitter)),
-					grpc_retry.WithMax(uint(backoff.MaxAttempts)),
-					grpc_retry.WithCodes(codes...),
-				),
-			)
-		} else if cfg.Retry.Codes != nil {
-			unaryInterceptors = append(unaryInterceptors,
-				grpc_retry.UnaryClientInterceptor(
-					grpc_retry.WithCodes(codes...),
-				),
-			)
-		} else {
-			panic("invalid retryer config")
+	codes := grpc_retry.DefaultRetriableCodes
+	if cfg.Retry.Codes != nil {
+		codes = cfg.Retry.Codes
+	}
+
+	if cfg.Retry.ExponentialBackoff != nil {
+		backoff := cfg.Retry.ExponentialBackoff
+		if backoff.Jitter <= 0 || backoff.Jitter > 1 {
+			backoff.Jitter = defaultRetryJitter
 		}
+		unaryInterceptors = append(unaryInterceptors,
+			grpc_retry.UnaryClientInterceptor(
+				grpc_retry.WithBackoff(grpc_retry.BackoffExponentialWithJitter(backoff.BaseDelay, backoff.Jitter)),
+				grpc_retry.WithMax(uint(backoff.MaxAttempts)),
+				grpc_retry.WithCodes(codes...),
+			),
+		)
+	} else if cfg.Retry.LinearBackoff != nil {
+		backoff := cfg.Retry.LinearBackoff
+		if backoff.Jitter <= 0 || backoff.Jitter > 1 {
+			backoff.Jitter = defaultRetryJitter
+		}
+		unaryInterceptors = append(unaryInterceptors,
+			grpc_retry.UnaryClientInterceptor(
+				grpc_retry.WithBackoff(grpc_retry.BackoffLinearWithJitter(backoff.Delay, backoff.Jitter)),
+				grpc_retry.WithMax(uint(backoff.MaxAttempts)),
+				grpc_retry.WithCodes(codes...),
+			),
+		)
+	} else if cfg.Retry.Codes != nil {
+		unaryInterceptors = append(unaryInterceptors,
+			grpc_retry.UnaryClientInterceptor(
+				grpc_retry.WithCodes(codes...),
+			),
+		)
+	} else {
+		panic("invalid retryer config")
 	}
 
 	options := []grpc.DialOption{
