@@ -54,6 +54,7 @@ func (cp *connManager) CreateConsumerChannel(
 	conn *amqp.Connection,
 	tag string,
 	queue string,
+	queuePriority uint8,
 	prefetchCount int,
 ) (*amqp.Channel, <-chan amqp.Delivery, error) {
 	channel, err := conn.Channel()
@@ -70,13 +71,17 @@ func (cp *connManager) CreateConsumerChannel(
 		return nil, nil, errors.Wrap(err, "unable to set QoS")
 	}
 
+	args := amqp.Table{}
+	if queuePriority > 0 {
+		args[PriorityProperty] = queuePriority
+	}
 	_, err = channel.QueueDeclare(
 		queue, // name of the queue
 		false, // durable
 		false, // delete when unused
 		false, // exclusive
 		false, // noWait
-		nil,   // arguments
+		args,  // arguments
 	)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "unable to declare queue")
