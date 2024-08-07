@@ -50,7 +50,12 @@ reconnectLoop:
 			continue
 		}
 
-		channel, deliveries, err := connectionsManager.CreateConsumerChannel(conn, cfg.Tag, cfg.Queue, cfg.PrefetchCount)
+		channel, deliveries, err := connectionsManager.CreateConsumerChannel(
+			conn,
+			cfg.Tag,
+			cfg.Queue,
+			cfg.QueuePriority,
+			cfg.PrefetchCount)
 		if err != nil {
 			connectionsManager.CloseConnection(conn)
 			time.Sleep(time.Second) // time to wait to not make infinite "for" loop

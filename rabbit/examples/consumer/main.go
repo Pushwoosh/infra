@@ -20,12 +20,13 @@ func main() {
 	}
 
 	wg := sync.WaitGroup{}
-	queues := []string{"notifications-3-channels", "notifications-1-channels"}
+	queues := []string{"test-queue"}
 	for _, queue := range queues {
 		i := 0
 		consumer, err := container.CreateConsumer(&infrarabbit.ConsumerConfig{
 			ConnectionName: "name",
 			Queue:          queue,
+			QueuePriority:  10,
 			PrefetchCount:  16,
 			Tag:            "test-consumer",
 		})
@@ -37,12 +38,15 @@ func main() {
 		go func(queue string) {
 			defer wg.Done()
 			for msg := range consumer.Consume() {
-				msgErr := msg.Nack()
+				msgErr := msg.Ack()
 				if msgErr != nil {
 					fmt.Printf("msg error: %s\n", msgErr)
 				}
 				i++
-				fmt.Printf("consumed from %s, index %d\n", queue, i)
+				fmt.Printf("consumed from %s, index %d, data: %s\n",
+					queue,
+					i,
+					string(msg.Body()))
 			}
 		}(queue)
 	}

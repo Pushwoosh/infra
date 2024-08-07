@@ -4,6 +4,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+const PriorityProperty = "x-max-priority"
+
 type ConnectionsConfig map[string]*ConnectionConfig
 
 type ConnectionConfig struct {
@@ -16,6 +18,7 @@ type ConnectionConfig struct {
 type ConsumerConfig struct {
 	ConnectionName string
 	Queue          string
+	QueuePriority  uint8
 	PrefetchCount  int
 	Tag            string
 }

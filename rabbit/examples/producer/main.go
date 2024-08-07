@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/pushwoosh/infra/rabbit"
 )
@@ -27,6 +28,9 @@ func main() {
 				Exchange:   "test-exchange",
 				RoutingKey: "test-routing-key",
 				Queue:      "test-queue",
+				QueueArgs: map[string]interface{}{
+					infrarabbit.PriorityProperty: 10,
+				},
 			},
 		},
 	})
@@ -34,11 +38,23 @@ func main() {
 		panic(err)
 	}
 
-	data, _ := json.Marshal(map[string]string{
-		"key": "value",
-	})
+	ticker := time.NewTicker(time.Second / 100)
+	defer ticker.Stop()
 
-	if err = producer.Produce(context.Background(), data, "test-exchange", "test-routing-key"); err != nil {
-		panic(err)
+	for range ticker.C {
+		var priority uint8 = 0
+
+		data, _ := json.Marshal(map[string]interface{}{
+			"priority": priority,
+		})
+
+		if err = producer.Produce(context.Background(), &infrarabbit.ProducerMessage{
+			Body:       data,
+			Exchange:   "test-exchange",
+			RoutingKey: "test-routing-key",
+			Priority:   priority,
+		}); err != nil {
+			panic(err)
+		}
 	}
 }

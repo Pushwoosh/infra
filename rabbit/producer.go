@@ -32,6 +32,13 @@ type Producer struct {
 	isClosed                     bool
 }
 
+type ProducerMessage struct {
+	Body       []byte
+	Exchange   string
+	RoutingKey string
+	Priority   uint8
+}
+
 func (p *Producer) start() error {
 	if err := p.reconnect(); err != nil {
 		return errors.Wrap(err, "unable to create initial connection to RabbitMQ")
@@ -65,10 +72,13 @@ func (p *Producer) start() error {
 	return nil
 }
 
-func (p *Producer) Produce(pCtx context.Context, message []byte, exchange string, routingKey string) error {
+func (p *Producer) Produce(pCtx context.Context, msg *ProducerMessage) error {
 	p.isLocked.Lock()
 	defer p.isLocked.Unlock()
 
+	if msg == nil {
+		return errors.New("message is nil")
+	}
 	if p.isClosed {
 		return errors.New("AMQP producer is closed")
 	}
@@ -91,12 +101,13 @@ func (p *Producer) Produce(pCtx context.Context, message []byte, exchange string
 		if p.producerAMQPChannel != nil {
 			if err = p.producerAMQPChannel.PublishWithContext(
 				ctx,
-				exchange,
-				routingKey,
+				msg.Exchange,
+				msg.RoutingKey,
 				false,
 				false,
 				amqp.Publishing{
-					Body:      message,
+					Body:      msg.Body,
+					Priority:  msg.Priority,
 					Timestamp: time.Now(),
 				},
 			); err == nil {
