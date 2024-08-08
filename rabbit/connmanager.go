@@ -73,7 +73,7 @@ func (cp *connManager) CreateConsumerChannel(
 
 	args := amqp.Table{}
 	if queuePriority > 0 {
-		args[PriorityProperty] = queuePriority
+		args[PriorityProperty] = int(queuePriority)
 	}
 	_, err = channel.QueueDeclare(
 		queue, // name of the queue
