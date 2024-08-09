@@ -1,9 +1,9 @@
 package infrarabbit
 
 import (
-	"sync"
-
+	"fmt"
 	"github.com/prometheus/client_golang/prometheus"
+	"sync"
 )
 
 var (
@@ -20,7 +20,8 @@ var (
 var initMetrics = func() {
 	metricsSourceOnce.Do(func() {
 		if MetricsNamespace == "" {
-			panic("MetricsNamespace should be redeclared")
+			fmt.Printf("warning: MetricsNamespace should by defined to collect metrics\n")
+			return
 		}
 
 		consumedMessagesCount = prometheus.NewCounterVec(prometheus.CounterOpts{

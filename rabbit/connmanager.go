@@ -121,6 +121,9 @@ func (cp *connManager) CloseConnection(conn *amqp.Connection) {
 
 func (cp *connManager) CloseConsumerChannel(channel *amqp.Channel) {
 	go func() {
+		if channel == nil {
+			return
+		}
 		// close amqp channel in separate goroutine because
 		// channel.Close() may block forever
 		if err := channel.Close(); err != nil {

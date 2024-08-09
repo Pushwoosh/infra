@@ -42,6 +42,9 @@ func (c *Consumer) start() {
 	heartbeatTicker := time.NewTicker(heartbeatIntervalCheck)
 	defer heartbeatTicker.Stop()
 
+	var channel *amqp.Channel
+	var deliveries <-chan amqp.Delivery
+
 reconnectLoop:
 	for !c.isClosed {
 		conn, isNewConn, err := connectionsManager.Get(c.connCfg, cfg.Tag)
@@ -50,7 +53,7 @@ reconnectLoop:
 			continue
 		}
 
-		channel, deliveries, err := connectionsManager.CreateConsumerChannel(
+		channel, deliveries, err = connectionsManager.CreateConsumerChannel(
 			conn,
 			cfg.Tag,
 			cfg.Queue,
@@ -112,6 +115,7 @@ reconnectLoop:
 			}
 		}
 	}
+	connectionsManager.CloseConsumerChannel(channel)
 	close(c.ch)
 	close(c.closed)
 }
