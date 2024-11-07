@@ -7,8 +7,9 @@ import (
 
 // Config is a logger configuration structure.
 type Config struct {
-	Environment string
-	Level       string
+	Environment       string
+	Level             string
+	DisableStacktrace bool
 }
 
 const (

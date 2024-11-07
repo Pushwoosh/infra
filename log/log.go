@@ -25,6 +25,7 @@ func Setup(cfg *Config) *zap.Logger {
 	}
 
 	loggerConfig.Level.SetLevel(cfg.GetLogLevel())
+	loggerConfig.DisableStacktrace = cfg.DisableStacktrace
 
 	l, err := loggerConfig.Build()
 	if err != nil {
