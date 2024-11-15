@@ -2,10 +2,11 @@ package infrarabbit
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/pushwoosh/infra/log"
+	infralog "github.com/pushwoosh/infra/log"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.uber.org/zap"
 )
@@ -25,12 +26,13 @@ const (
 var connectionsManager = newConnManager()
 
 type Consumer struct {
-	connCfg  *ConnectionConfig
-	cfg      *ConsumerConfig
-	ch       chan *Message
-	mu       sync.Mutex
-	closed   chan bool
-	isClosed bool
+	connCfg         *ConnectionConfig
+	cfg             *ConsumerConfig
+	ch              chan *Message
+	mu              sync.Mutex
+	closed          chan bool
+	isClosed        bool
+	itemsInProgress sync.WaitGroup
 }
 
 func (c *Consumer) start() {
@@ -72,10 +74,13 @@ reconnectLoop:
 		}
 
 		lastTimeConnectionUsed := time.Now()
-		isNeedRecreateChannel := false
+		isNeedRecreateChannel := atomic.Bool{}
 
-		var errCallback = func(err error) {
-			isNeedRecreateChannel = true
+		var callback = func(err error) {
+			if err != nil {
+				isNeedRecreateChannel.Store(true)
+			}
+			c.itemsInProgress.Done()
 		}
 
 		for !c.isClosed {
@@ -93,7 +98,7 @@ reconnectLoop:
 					continue reconnectLoop
 				}
 			case <-heartbeatTicker.C:
-				if time.Since(lastTimeConnectionUsed) > heartbeatReconnectionInterval || isNeedRecreateChannel {
+				if time.Since(lastTimeConnectionUsed) > heartbeatReconnectionInterval || isNeedRecreateChannel.Load() {
 					connectionsManager.CloseConsumerChannel(channel)
 					continue reconnectLoop
 				}
@@ -107,14 +112,16 @@ reconnectLoop:
 				lastTimeConnectionUsed = time.Now()
 				consumedMessagesCount.WithLabelValues(host, cfg.Queue).Inc()
 				c.ch <- &Message{
-					msg:         &msg,
-					host:        host,
-					queue:       cfg.Queue,
-					errCallback: errCallback,
+					msg:      &msg,
+					host:     host,
+					queue:    cfg.Queue,
+					callback: callback,
 				}
+				c.itemsInProgress.Add(1)
 			}
 		}
 	}
+	c.itemsInProgress.Wait()
 	connectionsManager.CloseConsumerChannel(channel)
 	close(c.ch)
 	close(c.closed)
