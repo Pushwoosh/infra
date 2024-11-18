@@ -111,13 +111,13 @@ reconnectLoop:
 				}
 				lastTimeConnectionUsed = time.Now()
 				consumedMessagesCount.WithLabelValues(host, cfg.Queue).Inc()
+				c.itemsInProgress.Add(1)
 				c.ch <- &Message{
 					msg:      &msg,
 					host:     host,
 					queue:    cfg.Queue,
 					callback: callback,
 				}
-				c.itemsInProgress.Add(1)
 			}
 		}
 	}
