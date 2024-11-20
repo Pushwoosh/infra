@@ -1,13 +1,16 @@
 package infrarabbit
 
 import (
+	"os"
 	"sync"
 
 	"github.com/pkg/errors"
-	"github.com/pushwoosh/infra/log"
+	infralog "github.com/pushwoosh/infra/log"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.uber.org/zap"
 )
+
+var hostname = os.Getenv("HOSTNAME")
 
 type connManager struct {
 	mu          sync.Mutex
@@ -35,9 +38,10 @@ func (cp *connManager) Get(cfg *ConnectionConfig, tag string) (*amqp.Connection,
 	}
 
 	amqpProps := amqp.NewConnectionProperties()
-	if tag != "" {
-		amqpProps.SetClientConnectionName(tag)
+	if tag == "" {
+		tag = hostname
 	}
+	amqpProps.SetClientConnectionName(tag)
 
 	conn, err := amqp.DialConfig(amqpURL, amqp.Config{
 		Properties: amqpProps,
