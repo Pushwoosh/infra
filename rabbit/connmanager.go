@@ -116,7 +116,7 @@ func (cp *connManager) CloseConnection(conn *amqp.Connection) {
 		go func() {
 			// close amqp connections in separate goroutine because
 			// connection.Close() may block forever
-			if err := conn.Close(); err != nil {
+			if err := conn.Close(); err != nil && err != amqp.ErrClosed {
 				infralog.Error("unable to close connection", zap.Error(err))
 			}
 		}()
