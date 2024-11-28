@@ -1,6 +1,8 @@
 package infrarabbit
 
 import (
+	"time"
+
 	"github.com/pkg/errors"
 )
 
@@ -15,12 +17,19 @@ type ConnectionConfig struct {
 	Vhost    string `mapstructure:"vhost"`
 }
 
+type ConsumerMetrics struct {
+	CheckInterval time.Duration                         // optional
+	QueueLength   func(host, queue string, value int64) // optional
+	QueueDelay    func(host, queue string, value int64) // optional
+}
+
 type ConsumerConfig struct {
 	ConnectionName string
 	Queue          string
-	QueuePriority  uint8
-	PrefetchCount  int
-	Tag            string
+	QueuePriority  uint8            // optional
+	PrefetchCount  int              // optional
+	Tag            string           // optional
+	Metrics        *ConsumerMetrics // optional
 }
 
 type ProducerConfig struct {
