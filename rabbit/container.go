@@ -13,8 +13,6 @@ type Container struct {
 }
 
 func NewContainer() *Container {
-	initMetrics() // awful code :( sorry for that
-
 	return &Container{
 		mu:  &sync.RWMutex{},
 		cfg: make(map[string]*ConnectionConfig),

@@ -5,14 +5,14 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/pushwoosh/infra/rabbit"
+	infrarabbit "github.com/pushwoosh/infra/rabbit"
 )
 
 func main() {
 	connName := "name"
 	container := infrarabbit.NewContainer()
 	err := container.AddConnection(connName, &infrarabbit.ConnectionConfig{
-		Address:  "rabbit-12.r2v.nue:5672",
+		Address:  "rabbit-host:5672",
 		Username: "guest",
 		Password: "guest",
 		Vhost:    "/",

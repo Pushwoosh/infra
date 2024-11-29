@@ -18,7 +18,7 @@ const (
 	defaultPassword      = "guest"
 
 	connCloseChanSize             = 8096
-	metricsIntervalCheck          = 15 * time.Second
+	metricsIntervalCheckDefault   = time.Hour * 24 * 365
 	heartbeatIntervalCheck        = time.Second
 	heartbeatReconnectionInterval = 5 * time.Minute
 )
@@ -39,8 +39,14 @@ func (c *Consumer) start() {
 	cfg := c.cfg
 	host, _ := getHostPort(c.connCfg.Address)
 
-	metricsTicker := time.NewTicker(metricsIntervalCheck)
+	metricsInterval := metricsIntervalCheckDefault
+	if cfg.Metrics != nil && cfg.Metrics.CheckInterval > 0 {
+		metricsInterval = cfg.Metrics.CheckInterval
+	}
+
+	metricsTicker := time.NewTicker(metricsInterval)
 	defer metricsTicker.Stop()
+
 	heartbeatTicker := time.NewTicker(heartbeatIntervalCheck)
 	defer heartbeatTicker.Stop()
 
@@ -103,14 +109,13 @@ reconnectLoop:
 					continue reconnectLoop
 				}
 			case <-metricsTicker.C:
-				go collectMetrics(channel, host, cfg.Queue)
+				go collectMetrics(cfg, channel, host, cfg.Queue)
 			case msg, isOpen := <-deliveries:
 				if !isOpen {
 					connectionsManager.CloseConsumerChannel(channel)
 					continue reconnectLoop
 				}
 				lastTimeConnectionUsed = time.Now()
-				consumedMessagesCount.WithLabelValues(host, cfg.Queue).Inc()
 				c.itemsInProgress.Add(1)
 				c.ch <- &Message{
 					msg:      &msg,
@@ -144,7 +149,12 @@ func (c *Consumer) Close() error {
 	return nil
 }
 
-func collectMetrics(channel *amqp.Channel, host string, queue string) {
+func collectMetrics(
+	cfg *ConsumerConfig,
+	channel *amqp.Channel,
+	host string,
+	queue string,
+) {
 	defer func() {
 		if e := recover(); e != nil {
 			infralog.Error(
@@ -153,7 +163,7 @@ func collectMetrics(channel *amqp.Channel, host string, queue string) {
 		}
 	}()
 
-	if channel != nil {
+	if channel != nil && !channel.IsClosed() && cfg.Metrics != nil {
 		q, err := channel.QueueDeclarePassive(
 			queue,
 			false, // durable
@@ -162,13 +172,21 @@ func collectMetrics(channel *amqp.Channel, host string, queue string) {
 			false, // noWait
 			nil,   // arguments
 		)
-		if err == nil {
-			queueLength := float64(q.Messages)
-			ConsumerQueueLength.WithLabelValues(host, queue).Set(queueLength)
-			if q.Messages == 0 {
-				ConsumerQueueDelay.WithLabelValues(host, queue).Set(0)
-				return
-			}
+		if err != nil {
+			return
+		}
+
+		if cfg.Metrics.QueueLength != nil {
+			cfg.Metrics.QueueLength(host, queue, int64(q.Messages))
+		}
+
+		if cfg.Metrics.QueueDelay == nil {
+			return
+		}
+
+		if q.Messages == 0 {
+			cfg.Metrics.QueueDelay(host, queue, 0)
+			return
 		}
 
 		msg, ok, err := channel.Get(queue, false)
@@ -176,7 +194,7 @@ func collectMetrics(channel *amqp.Channel, host string, queue string) {
 			seconds := time.Since(msg.Timestamp).Seconds()
 			_ = msg.Reject(true)
 			if seconds >= 0 {
-				ConsumerQueueDelay.WithLabelValues(host, queue).Set(seconds)
+				cfg.Metrics.QueueDelay(host, queue, int64(seconds))
 			}
 		}
 	}
