@@ -92,12 +92,20 @@ reconnectLoop:
 		for !c.isClosed {
 			select {
 			case closeErr, isOpen := <-connClose:
+				if closeErr != nil {
+					infralog.Error("rabbit consumer connection error", zap.Error(closeErr))
+				}
+
 				if closeErr != nil || !isOpen {
 					go readAllErrors(connClose)
 					connectionsManager.CloseConnection(conn)
 					continue reconnectLoop
 				}
 			case closeErr, isOpen := <-channelClose:
+				if closeErr != nil {
+					infralog.Error("rabbit consumer channel error", zap.Error(closeErr))
+				}
+
 				if closeErr != nil || !isOpen {
 					go readAllErrors(channelClose)
 					connectionsManager.CloseConsumerChannel(channel)
