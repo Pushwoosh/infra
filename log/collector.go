@@ -7,8 +7,11 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// LogHandler is the callback function that can be used for handling log entries
+type LogHandler func(entry *LogEntry)
+
 // handlers is a map of handlers for different levels
-var handlers []func(entry *LogEntry)
+var handlers []LogHandler
 
 func Debug(message string, fields ...zap.Field) {
 	handleEntry(&LogEntry{Level: zapcore.DebugLevel, Message: message, Fields: fields})
@@ -105,10 +108,10 @@ func WithFields(ctx context.Context, fields ...zap.Field) context.Context {
 	return ctx
 }
 
-func RegisterLogHandler(handler func(entry *LogEntry)) {
+func RegisterLogHandler(handler LogHandler) {
 	// add handler to the beginning of the handlers list to
 	// make it the first one to be called
-	handlers = append([]func(entry *LogEntry){handler}, handlers...)
+	handlers = append([]LogHandler{handler}, handlers...)
 }
 
 func handleEntry(entry *LogEntry) {
