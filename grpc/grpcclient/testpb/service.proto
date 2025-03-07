@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package testpb;
+
+option go_package = "github.com/pushwoosh/infra/grpc/grpcclient/testpb/testpb";
+
+service HelloService {
+  rpc Hello(HelloRequest) returns (HelloResponse) {}
+}
+
+message HelloRequest {
+  string message = 1;
+}
+
+message HelloResponse {
+  string reply = 1;
+}

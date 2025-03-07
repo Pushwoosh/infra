@@ -47,7 +47,7 @@ func NewContainer() *Container {
 }
 
 // Connect creates a new named GRPC connection
-func (cont *Container) Connect(name string, cfg *ConnectionConfig) error {
+func (cont *Container) Connect(name string, cfg *ConnectionConfig, options ...grpc.DialOption) error {
 	unaryInterceptors := []grpc.UnaryClientInterceptor{
 		grpc_prometheus.UnaryClientInterceptor,
 	}
@@ -101,9 +101,7 @@ func (cont *Container) Connect(name string, cfg *ConnectionConfig) error {
 		panic("invalid retryer config")
 	}
 
-	options := []grpc.DialOption{
-		grpc.WithChainUnaryInterceptor(unaryInterceptors...),
-	}
+	options = append(options, grpc.WithChainUnaryInterceptor(unaryInterceptors...))
 
 	if cfg.TLS == nil || !cfg.TLS.Enabled {
 		options = append(options, grpc.WithTransportCredentials(insecure.NewCredentials()))
