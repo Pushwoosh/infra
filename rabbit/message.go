@@ -8,8 +8,6 @@ import (
 
 type Message struct {
 	msg      *amqp.Delivery
-	host     string
-	queue    string
 	callback func(error)
 	once     atomic.Bool
 }
@@ -19,13 +17,10 @@ func (m *Message) Ack() error {
 		return nil
 	}
 
-	if err := m.msg.Ack(false); err != nil {
-		m.callback(err)
-		return err
-	}
+	err := m.msg.Ack(false)
+	m.callback(err)
 
-	m.callback(nil)
-	return nil
+	return err
 }
 
 func (m *Message) Nack() error {
@@ -33,13 +28,10 @@ func (m *Message) Nack() error {
 		return nil
 	}
 
-	if err := m.msg.Nack(false, true); err != nil {
-		m.callback(err)
-		return err
-	}
+	err := m.msg.Nack(false, true)
+	m.callback(err)
 
-	m.callback(nil)
-	return nil
+	return err
 }
 
 func (m *Message) IsRedelivered() bool {

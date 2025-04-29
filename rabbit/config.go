@@ -3,10 +3,21 @@ package infrarabbit
 import (
 	"time"
 
-	"github.com/pkg/errors"
+	"errors"
 )
 
-const PriorityProperty = "x-max-priority"
+const (
+	defaultPrefetchCount = 1
+	defaultVHost         = "/"
+	defaultUser          = "guest"
+	defaultPassword      = "guest"
+
+	PriorityProperty = "x-max-priority"
+)
+
+var (
+	ErrAddressIsRequired = errors.New("address is mandatory")
+)
 
 type ConnectionsConfig map[string]*ConnectionConfig
 
@@ -30,6 +41,7 @@ type ConsumerConfig struct {
 	PrefetchCount  int              // optional
 	Tag            string           // optional
 	Metrics        *ConsumerMetrics // optional
+	ErrCallback    func(error)
 }
 
 type ProducerConfig struct {
@@ -44,7 +56,7 @@ func (c *ConnectionsConfig) Validate() error {
 
 	for name, conf := range *c {
 		if err := conf.Validate(); err != nil {
-			return errors.Wrap(err, name)
+			return errors.Join(err, errors.New(name))
 		}
 	}
 
@@ -53,11 +65,11 @@ func (c *ConnectionsConfig) Validate() error {
 
 func (c *ConnectionConfig) Validate() error {
 	if c == nil {
-		return errors.New("empty connection config")
+		return ErrConfigIsRequired
 	}
 
 	if c.Address == "" {
-		return errors.New("address is mandatory")
+		return ErrAddressIsRequired
 	}
 
 	return nil
