@@ -1,10 +1,19 @@
 package infrarabbit
 
 import (
+	"errors"
 	"sync"
+	"sync/atomic"
 
-	"github.com/pkg/errors"
 	amqp "github.com/rabbitmq/amqp091-go"
+)
+
+var (
+	ErrBinderIsClosed              = errors.New("binder is closed")
+	ErrUnableToCloseConnection     = errors.New("unable to close connection")
+	ErrUnableToDeclareExchange     = errors.New("unable to declare exchange")
+	ErrUnableToDeclareQueue        = errors.New("unable to declare queue")
+	ErrUnableToBindQueueToExchange = errors.New("unable to bind queue to exchange")
 )
 
 type Kind string
@@ -14,11 +23,11 @@ const KindFanOut Kind = "fanout"
 const KindTopic Kind = "topic"
 const KindHeaders Kind = "headers"
 
-type binder struct {
+type Binder struct {
 	conn     *amqp.Connection
 	channel  *amqp.Channel
 	isLocked sync.Mutex
-	isClosed bool
+	isClosed atomic.Bool
 }
 
 type BindConfig struct {
@@ -42,85 +51,87 @@ type BindConfig struct {
 	BindArgs           map[string]interface{}
 }
 
-func NewBinder(config *ConnectionConfig) (*binder, error) {
-	url, err := createAMQPURL(config)
+func NewBinder(config *ConnectionConfig) (*Binder, error) {
+	conn, err := amqp.Dial(createAMQPURL(config))
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to create URL for binder")
-	}
-
-	conn, err := amqp.Dial(url)
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to connect to RabbitMQ")
+		return nil, errors.Join(err, ErrUnableToCreateConnection)
 	}
 
 	ch, err := conn.Channel()
 	if err != nil {
 		_ = conn.Close()
-		return nil, errors.Wrap(err, "unable to get channel from RabbitMQ")
+		return nil, errors.Join(err, ErrUnableToCreateChannel)
 	}
 
-	return &binder{
+	return &Binder{
 		conn:    conn,
 		channel: ch,
 	}, nil
 }
 
-func (b *binder) Bind(config *BindConfig) error {
+func (b *Binder) Bind(config *BindConfig) error {
 	b.isLocked.Lock()
 	defer b.isLocked.Unlock()
 
-	if b.isClosed {
-		return errors.New("binder is already closed")
+	if b.isClosed.Load() {
+		return ErrBinderIsClosed
 	}
 
+	return bind(b.channel, config)
+}
+
+func (b *Binder) Close() error {
+	b.isLocked.Lock()
+	defer b.isLocked.Unlock()
+
+	if b.isClosed.Swap(true) || b.conn == nil {
+		return nil
+	}
+
+	if err := b.conn.Close(); err != nil {
+		return errors.Join(err, ErrUnableToCloseConnection)
+	}
+
+	return nil
+}
+
+func bind(channel *amqp.Channel, config *BindConfig) error {
 	exchangeKind := config.ExchangeKind
 	if exchangeKind == "" {
 		exchangeKind = KindDirect
 	}
-	if err := b.channel.ExchangeDeclare(
+
+	if err := channel.ExchangeDeclare(
 		config.Exchange,
 		string(exchangeKind),
 		config.ExchangeDurable,
 		config.ExchangeAutoDelete,
 		config.ExchangeInternal,
 		config.ExchangeNoWait,
-		config.ExchangeArgs); err != nil {
-		return errors.Wrap(err, "unable to declare exchange")
+		config.ExchangeArgs,
+	); err != nil {
+		return errors.Join(err, ErrUnableToDeclareExchange)
 	}
 
-	if _, err := b.channel.QueueDeclare(
+	if _, err := channel.QueueDeclare(
 		config.Queue,
 		config.QueueDurable,
 		config.QueueAutoDelete,
 		config.QueueExclusive,
 		config.QueueNoWait,
-		config.QueueArgs); err != nil {
-		return errors.Wrap(err, "unable to declare queue")
+		config.QueueArgs,
+	); err != nil {
+		return errors.Join(err, ErrUnableToDeclareQueue)
 	}
 
-	if err := b.channel.QueueBind(
+	if err := channel.QueueBind(
 		config.Queue,
 		config.RoutingKey,
 		config.Exchange,
 		config.BindNoWait,
 		config.BindArgs); err != nil {
-		return errors.Wrap(err, "unable to bind queue to exchange")
+		return errors.Join(err, ErrUnableToBindQueueToExchange)
 	}
 
-	return nil
-}
-
-func (b *binder) Close() error {
-	b.isLocked.Lock()
-	defer b.isLocked.Unlock()
-
-	if !b.isClosed {
-		b.isClosed = true
-		if b.conn != nil {
-			if err := b.conn.Close(); err != nil {
-				return errors.Wrap(err, "unable to close connection for binder")
-			}
-		}
-	}
 	return nil
 }

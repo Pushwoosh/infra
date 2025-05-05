@@ -1,9 +1,13 @@
 package infrarabbit
 
 import (
+	"errors"
 	"sync"
+)
 
-	"github.com/pkg/errors"
+var (
+	ErrConfigIsRequired = errors.New("config is required")
+	ErrConfigNotFound   = errors.New("config is not found")
 )
 
 // Container is a simple container for holding named rabbit connections.
@@ -34,17 +38,12 @@ func (cont *Container) CreateConsumer(consumerCfg *ConsumerConfig) (*Consumer, e
 	defer cont.mu.Unlock()
 
 	if consumerCfg == nil {
-		return nil, errors.Errorf("config is required")
+		return nil, ErrConfigIsRequired
 	}
 
 	cfg, ok := cont.cfg[consumerCfg.ConnectionName]
 	if !ok {
-		return nil, errors.Errorf("invalid connection name: %s", consumerCfg.ConnectionName)
-	}
-
-	host, port := getHostPort(cfg.Address)
-	if host == "" || port <= 0 {
-		return nil, errors.Errorf("invalid rabbitmq address: %s", cfg.Address)
+		return nil, ErrConfigNotFound
 	}
 
 	consumer := &Consumer{
@@ -54,7 +53,7 @@ func (cont *Container) CreateConsumer(consumerCfg *ConsumerConfig) (*Consumer, e
 		closed:  make(chan bool),
 	}
 
-	go consumer.start()
+	go consumer.handle()
 	return consumer, nil
 }
 
@@ -62,14 +61,13 @@ func (cont *Container) CreateProducer(producerCfg *ProducerConfig) (*Producer, e
 	cont.mu.Lock()
 	defer cont.mu.Unlock()
 
-	cfg, ok := cont.cfg[producerCfg.ConnectionName]
-	if !ok {
-		return nil, errors.Errorf("invalid connection name: %s", producerCfg.ConnectionName)
+	if producerCfg == nil {
+		return nil, ErrConfigIsRequired
 	}
 
-	host, port := getHostPort(cfg.Address)
-	if host == "" || port <= 0 {
-		return nil, errors.Errorf("invalid rabbitmq address: %s", cfg.Address)
+	cfg, ok := cont.cfg[producerCfg.ConnectionName]
+	if !ok {
+		return nil, ErrConfigNotFound
 	}
 
 	p := &Producer{
@@ -77,9 +75,5 @@ func (cont *Container) CreateProducer(producerCfg *ProducerConfig) (*Producer, e
 		cfg:     producerCfg,
 	}
 
-	if err := p.start(); err != nil {
-		return nil, err
-	}
-
-	return p, nil
+	return p, p.reconnect()
 }

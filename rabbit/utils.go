@@ -4,18 +4,10 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
-func createAMQPURL(cfg *ConnectionConfig) (string, error) {
+func createAMQPURL(cfg *ConnectionConfig) string {
 	host, port := getHostPort(cfg.Address)
-	if host == "" {
-		return "", errors.New("invalid AMQP host")
-	}
-	if port == 0 {
-		return "", errors.New("invalid AMQP port")
-	}
 
 	username := defaultUser
 	if cfg.Username != "" {
@@ -38,7 +30,7 @@ func createAMQPURL(cfg *ConnectionConfig) (string, error) {
 		password,
 		host,
 		port,
-		vhost), nil
+		vhost)
 }
 
 func getHostPort(address string) (string, int) {
