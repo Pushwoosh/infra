@@ -41,7 +41,6 @@ type ConsumerConfig struct {
 	PrefetchCount  int              // optional
 	Tag            string           // optional
 	Metrics        *ConsumerMetrics // optional
-	ErrCallback    func(error)
 }
 
 type ProducerConfig struct {

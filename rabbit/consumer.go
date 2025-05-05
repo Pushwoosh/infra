@@ -4,6 +4,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	infralog "github.com/pushwoosh/infra/log"
+	"go.uber.org/zap"
 )
 
 var connectionsManager = newConnManager()
@@ -19,10 +22,9 @@ type Consumer struct {
 
 func (c *Consumer) handle() {
 	for !c.isClosed.Load() {
-		conn, ch, err := connectionsManager.GetChannel(c.connCfg, c.cfg)
+		ch, err := connectionsManager.GetChannel(c.connCfg, c.cfg)
 		if err != nil {
-			conn.MarkAsDead()
-			c.errCallback(err)
+			infralog.Error("unable to get channel", zap.Error(err))
 			time.Sleep(time.Second)
 			continue
 		}
@@ -40,7 +42,7 @@ func (c *Consumer) handle() {
 					ch.InProgressDecrement()
 					if err != nil {
 						ch.MarkAsDead()
-						c.errCallback(err)
+						infralog.Error("message callback error", zap.Error(err))
 					}
 				},
 			}
@@ -51,14 +53,6 @@ func (c *Consumer) handle() {
 
 	close(c.ch)
 	close(c.closed)
-}
-
-func (c *Consumer) errCallback(err error) {
-	if c.cfg.ErrCallback == nil || err == nil {
-		return
-	}
-
-	c.cfg.ErrCallback(err)
 }
 
 func (c *Consumer) Consume() chan *Message {

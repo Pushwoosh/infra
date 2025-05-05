@@ -21,12 +21,8 @@ type connection struct {
 	isDead   atomic.Bool
 }
 
-func (ci *connection) MarkAsDead() {
-	if ci == nil {
-		return
-	}
-
-	ci.isDead.Store(true)
+func (c *connection) MarkAsDead() {
+	c.isDead.Store(true)
 }
 
 type channel struct {
@@ -45,27 +41,14 @@ func (ch *channel) InProgressDecrement() {
 	ch.messagesInProgress.Done()
 }
 
-// MarkAsDead marks the channel as dead. ci can be nil.
 func (ch *channel) MarkAsDead() {
-	if ch == nil {
-		return
-	}
-
 	ch.isDead.Store(true)
-}
-
-func (ch *channel) errCallback(err error) {
-	if ch == nil || ch.cfg == nil || ch.cfg.ErrCallback == nil || err == nil {
-		return
-	}
-
-	ch.cfg.ErrCallback(err)
 }
 
 func (ch *channel) collectMetrics(host string) {
 	defer func() {
 		if e := recover(); e != nil {
-			ch.errCallback(fmt.Errorf("%v", e))
+			infralog.Error("collect metrics error", zap.Error(fmt.Errorf("%v", e)))
 			return
 		}
 	}()
@@ -128,26 +111,27 @@ func newConnManager() *connManager {
 	return cm
 }
 
-func (cm *connManager) GetChannel(connCfg *ConnectionConfig, consumerCfg *ConsumerConfig) (*connection, *channel, error) {
+func (cm *connManager) GetChannel(connCfg *ConnectionConfig, consumerCfg *ConsumerConfig) (*channel, error) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
 	conn, err := cm.createConnection(connCfg, consumerCfg.Tag)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	ch, err := cm.createChannel(conn, consumerCfg)
+	ch, err := cm.createChannel(conn.amqpConn, consumerCfg)
 	if err != nil {
-		return nil, nil, err
+		conn.MarkAsDead()
+		return nil, err
 	}
 
 	conn.channels[ch] = true
-	return conn, ch, nil
+	return ch, nil
 }
 
-func (cm *connManager) createChannel(connItem *connection, consumerCfg *ConsumerConfig) (*channel, error) {
-	ch, err := connItem.amqpConn.Channel()
+func (cm *connManager) createChannel(amqpConn *amqp.Connection, consumerCfg *ConsumerConfig) (*channel, error) {
+	ch, err := amqpConn.Channel()
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +186,6 @@ func (cm *connManager) createChannel(connItem *connection, consumerCfg *Consumer
 	}
 
 	chItem.deliveries = deliveries
-	connItem.channels[chItem] = true
 	return chItem, nil
 }
 
@@ -227,36 +210,36 @@ func (cm *connManager) createConnection(cfg *ConnectionConfig, tag string) (*con
 		return nil, err
 	}
 
-	cItem := &connection{
+	c := &connection{
 		cfg:      cfg,
 		amqpConn: conn,
 		channels: make(map[*channel]bool),
 	}
 
-	cm.handleConnErrors(cItem)
-	cm.conns[cItem] = amqpURL
-	return cItem, nil
+	cm.handleConnErrors(c)
+	cm.conns[c] = amqpURL
+	return c, nil
 }
 
-func (cm *connManager) handleChannelErrors(chItem *channel) {
+func (cm *connManager) handleChannelErrors(ch *channel) {
 	go func() {
-		errorsCh := chItem.amqpChannel.NotifyClose(make(chan *amqp.Error))
+		errorsCh := ch.amqpChannel.NotifyClose(make(chan *amqp.Error))
 		for err := range errorsCh {
 			if err != nil {
-				chItem.MarkAsDead()
-				chItem.errCallback(err)
+				ch.MarkAsDead()
+				infralog.Error("channel error", zap.Error(err))
 			}
 		}
 	}()
 }
 
-func (cm *connManager) handleConnErrors(cItem *connection) {
+func (cm *connManager) handleConnErrors(c *connection) {
 	go func() {
-		errorsCh := cItem.amqpConn.NotifyClose(make(chan *amqp.Error))
+		errorsCh := c.amqpConn.NotifyClose(make(chan *amqp.Error))
 		for connErr := range errorsCh {
-			if connErr != nil { // where to put errors?
-				cItem.MarkAsDead()
-				infralog.Error("error on rabbitmq connection", zap.Error(connErr))
+			if connErr != nil {
+				c.MarkAsDead()
+				infralog.Error("connection error", zap.Error(connErr))
 			}
 		}
 	}()
@@ -313,12 +296,14 @@ func (cm *connManager) cleanDeadConnections() {
 }
 
 func (cm *connManager) closeDeadConnection(conn *connection) {
-	_ = conn.amqpConn.Close() // where to put errors?
+	if err := conn.amqpConn.Close(); err != nil {
+		infralog.Error("close dead connection error", zap.Error(err))
+	}
 }
 
 func (cm *connManager) closeDeadChannel(channel *channel) {
 	channel.messagesInProgress.Wait()
-	err := channel.amqpChannel.Close()
-
-	channel.errCallback(err)
+	if err := channel.amqpChannel.Close(); err != nil {
+		infralog.Error("close dead channel error", zap.Error(err))
+	}
 }
