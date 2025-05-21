@@ -3,6 +3,7 @@ package infraclickhouse
 import (
 	"database/sql"
 	"sync"
+	"time"
 
 	_ "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/dlmiddlecote/sqlstats"
@@ -40,10 +41,25 @@ func (cont *Container) Connect(name string, cfg *ConnectionConfig) error {
 		return errors.Wrapf(err, "conn.Ping")
 	}
 
+	if cfg.MaxConnections <= 0 {
+		cfg.MaxConnections = 10
+	}
 	conn.SetMaxOpenConns(cfg.MaxConnections)
+
+	if cfg.MaxIdleConnections <= 0 {
+		cfg.MaxIdleConnections = 4
+	}
 	conn.SetMaxIdleConns(cfg.MaxIdleConnections)
-	conn.SetConnMaxIdleTime(cfg.MaxConnectionIdleTime)
+
+	if cfg.MaxConnectionLifetime <= 0 {
+		cfg.MaxConnectionLifetime = 1 * time.Hour
+	}
 	conn.SetConnMaxLifetime(cfg.MaxConnectionLifetime)
+
+	if cfg.MaxConnectionIdleTime <= 0 {
+		cfg.MaxConnectionIdleTime = 10 * time.Second
+	}
+	conn.SetConnMaxIdleTime(cfg.MaxConnectionIdleTime)
 
 	if collector := cont.GetCollector(name); collector != nil {
 		prometheus.Unregister(collector)
