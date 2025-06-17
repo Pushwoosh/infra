@@ -9,6 +9,11 @@ import (
 type ConnectionsConfig map[string]*ConnectionConfig
 
 type ConnectionConfig struct {
+	// Whether the connection is enabled.
+	// If not set, the connection is considered enabled.
+	// If set to false, the program must not try to connect to this Redis instance.
+	Enabled *bool `mapstructure:"enabled"`
+
 	// Whether to use cluster client or single node client
 	ClusterMode bool `mapstructure:"cluster_mode"`
 
@@ -34,6 +39,13 @@ func (c *ConnectionsConfig) Validate() error {
 	}
 
 	return nil
+}
+
+func (c *ConnectionConfig) GetEnabled() bool {
+	if c.Enabled == nil {
+		return true
+	}
+	return *c.Enabled
 }
 
 func (c *ConnectionConfig) GetReadTimeout() time.Duration {
