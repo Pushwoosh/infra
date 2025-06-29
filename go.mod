@@ -16,7 +16,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.21.1
 	github.com/rabbitmq/amqp091-go v1.10.0
-	github.com/redis/go-redis/v9 v9.7.1
+	github.com/redis/go-redis/v9 v9.11.0
 	github.com/segmentio/kafka-go v0.4.47
 	go.mongodb.org/mongo-driver v1.17.3
 	go.uber.org/zap v1.27.0
