@@ -34,6 +34,7 @@ To create a new connection, call `Connect` method. To fetch a connection, call `
 - [GRPC Client](grpc/grpcclient) - has same interface as database and broker libraries
 - [Log](log) - zap logger wrapper
 - [Netretry](netretry) - retry lib for temporary network errors
+- [Must](must) - helper function to panic on error
 - [Prometheus pushgateway client](prompushgw) - client for pushgateway, mostly used in cronjobs
 - [Operator](operator)
 - [System](system) - OS signal handler
