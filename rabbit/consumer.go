@@ -1,7 +1,6 @@
 package infrarabbit
 
 import (
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -15,12 +14,14 @@ type Consumer struct {
 	connCfg  *ConnectionConfig
 	cfg      *ConsumerConfig
 	ch       chan *Message
-	mu       sync.Mutex
 	closed   chan bool
 	isClosed atomic.Bool
 }
 
 func (c *Consumer) handle() {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
 	for !c.isClosed.Load() {
 		ch, err := connectionsManager.GetChannel(c.connCfg, c.cfg)
 		if err != nil {
@@ -29,22 +30,27 @@ func (c *Consumer) handle() {
 			continue
 		}
 
+	innerLoop:
 		for !c.isClosed.Load() && !ch.isDead.Load() {
-			msg, isOpen := <-ch.deliveries
-			if !isOpen {
-				break
-			}
+			select {
+			case msg, isOpen := <-ch.deliveries:
+				if !isOpen {
+					break innerLoop
+				}
 
-			ch.InProgressIncrement()
-			c.ch <- &Message{
-				msg: &msg,
-				callback: func(err error) {
-					ch.InProgressDecrement()
-					if err != nil {
-						ch.MarkAsDead()
-						infralog.Error("message callback error", zap.Error(err))
-					}
-				},
+				ch.InProgressIncrement()
+				c.ch <- &Message{
+					msg: &msg,
+					callback: func(err error) {
+						ch.InProgressDecrement()
+						if err != nil {
+							ch.MarkAsDead()
+							infralog.Error("message callback error", zap.Error(err))
+						}
+					},
+				}
+			case <-ticker.C:
+				// do nothing
 			}
 		}
 
@@ -60,9 +66,6 @@ func (c *Consumer) Consume() chan *Message {
 }
 
 func (c *Consumer) Close() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.isClosed.Swap(true) {
 		return nil
 	}
