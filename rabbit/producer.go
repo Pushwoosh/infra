@@ -78,7 +78,7 @@ func (p *Producer) Produce(pCtx context.Context, msg *ProducerMessage) error {
 		}
 
 		time.Sleep(time.Second)
-		if reconnectErr := p.reconnect(); reconnectErr != nil {
+		if reconnectErr := p.reconnect(p.cfg.Tag); reconnectErr != nil {
 			err = errors.Join(err, reconnectErr)
 		}
 	}
@@ -96,13 +96,21 @@ func (p *Producer) handleErrors(ch chan *amqp.Error) {
 	}()
 }
 
-func (p *Producer) reconnect() error {
+func (p *Producer) reconnect(tag string) error {
 	if p.producerAMQPConnection != nil {
 		_ = p.producerAMQPConnection.Close()
 		p.producerAMQPConnection = nil
 	}
 
-	conn, err := amqp.Dial(createAMQPURL(p.connCfg))
+	amqpProps := amqp.NewConnectionProperties()
+	if tag == "" {
+		tag = hostname
+	}
+	amqpProps.SetClientConnectionName(tag)
+
+	conn, err := amqp.DialConfig(createAMQPURL(p.connCfg), amqp.Config{
+		Properties: amqpProps,
+	})
 	if err != nil {
 		return errors.Join(err, ErrUnableToCreateConnection)
 	}

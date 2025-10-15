@@ -75,5 +75,5 @@ func (cont *Container) CreateProducer(producerCfg *ProducerConfig) (*Producer, e
 		cfg:     producerCfg,
 	}
 
-	return p, p.reconnect()
+	return p, p.reconnect(producerCfg.Tag)
 }

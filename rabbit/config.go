@@ -45,6 +45,7 @@ type ConsumerConfig struct {
 
 type ProducerConfig struct {
 	ConnectionName string
+	Tag            string // optional
 	Bindings       []*BindConfig
 }
 
