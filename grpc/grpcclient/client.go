@@ -19,7 +19,7 @@ const (
 	defaultRetryDelay       = time.Second
 	defaultRetryMaxAttempts = 10
 	defaultRetryJitter      = 0.3
-	connectionTimeout       = 5 * time.Second
+	connectionTimeout       = 30 * time.Second
 )
 
 var ErrFailedToConnect = errors.New("failed to bring connection to ready state")
