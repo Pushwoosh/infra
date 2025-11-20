@@ -149,17 +149,20 @@ func (cm *connManager) createChannel(amqpConn *amqp.Connection, consumerCfg *Con
 
 	queuePriority := consumerCfg.QueuePriority
 	args := amqp.Table{}
+	for prop, value := range consumerCfg.QueueArgs {
+		args[prop] = value
+	}
 	if queuePriority > 0 {
 		args[PriorityProperty] = int(queuePriority)
 	}
 
 	_, err = ch.QueueDeclare(
-		consumerCfg.Queue, // name of the queue
-		false,             // durable
-		false,             // delete when unused
-		false,             // exclusive
-		false,             // noWait
-		args,              // arguments
+		consumerCfg.Queue,        // name of the queue
+		consumerCfg.QueueDurable, // durable
+		false,                    // delete when unused
+		false,                    // exclusive
+		false,                    // noWait
+		args,                     // arguments
 	)
 	if err != nil {
 		return nil, err

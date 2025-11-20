@@ -26,9 +26,12 @@ func main() {
 		consumer, err := container.CreateConsumer(&infrarabbit.ConsumerConfig{
 			ConnectionName: "name",
 			Queue:          queue,
-			QueuePriority:  10,
 			PrefetchCount:  16,
 			Tag:            "test-consumer",
+			QueueDurable:   true,
+			QueueArgs: map[string]interface{}{
+				"x-queue-type": "quorum",
+			},
 		})
 		if err != nil {
 			panic(err)
