@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/pushwoosh/infra/log"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/event"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/event"
 	"go.uber.org/zap"
 )
 
@@ -43,7 +43,7 @@ func logSucceededEvent(e *event.CommandSucceededEvent, origin *event.CommandStar
 // logFailedEvent logs failed query
 func logFailedEvent(e *event.CommandFailedEvent, origin *event.CommandStartedEvent) {
 	fields := getLogFields(e.CommandFinishedEvent, origin)
-	infralog.Debug("query failed", append(fields, zap.String("reason", e.Failure))...)
+	infralog.Debug("query failed", append(fields, zap.Error(e.Failure))...)
 }
 
 func initLoggingMonitor(b *monitorBuilder, cfg *QueryLoggingConfig) {

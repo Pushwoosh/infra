@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"go.mongodb.org/mongo-driver/event"
+	"go.mongodb.org/mongo-driver/v2/event"
 )
 
 var metrics struct {
