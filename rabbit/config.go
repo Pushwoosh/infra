@@ -12,7 +12,7 @@ const (
 	defaultUser          = "guest"
 	defaultPassword      = "guest"
 
-	PriorityProperty = "x-max-priority"
+	PriorityProperty = "x-max-priority" // deprecated, use QueueArgs
 )
 
 var (
@@ -37,10 +37,12 @@ type ConsumerMetrics struct {
 type ConsumerConfig struct {
 	ConnectionName string
 	Queue          string
-	QueuePriority  uint8            // optional
-	PrefetchCount  int              // optional
-	Tag            string           // optional
-	Metrics        *ConsumerMetrics // optional
+	QueueDurable   bool                   // optional
+	QueuePriority  uint8                  // deprecated
+	QueueArgs      map[string]interface{} // optional
+	PrefetchCount  int                    // optional
+	Tag            string                 // optional
+	Metrics        *ConsumerMetrics       // optional
 }
 
 type ProducerConfig struct {

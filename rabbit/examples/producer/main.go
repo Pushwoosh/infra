@@ -25,11 +25,13 @@ func main() {
 		ConnectionName: connName,
 		Bindings: []*infrarabbit.BindConfig{ // optional, will create exchange/queue and bindings
 			{
-				Exchange:   "test-exchange",
-				RoutingKey: "test-routing-key",
-				Queue:      "test-queue",
+				Exchange:        "test-exchange",
+				RoutingKey:      "test-routing-key",
+				Queue:           "test-queue",
+				ExchangeDurable: true,
+				QueueDurable:    true,
 				QueueArgs: map[string]interface{}{
-					infrarabbit.PriorityProperty: 10,
+					"x-queue-type": "quorum",
 				},
 			},
 		},
