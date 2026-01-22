@@ -99,8 +99,8 @@ func WithField(ctx context.Context, field zap.Field) context.Context {
 }
 
 func WithFields(ctx context.Context, fields ...zap.Field) context.Context {
-	ctxFields := ctx.Value(fieldsCtxKey).(*logFields)
-	if ctxFields == nil {
+	ctxFields, ok := ctx.Value(fieldsCtxKey).(*logFields)
+	if !ok || ctxFields == nil {
 		ctxFields = &logFields{}
 		ctx = context.WithValue(ctx, fieldsCtxKey, ctxFields)
 	}
