@@ -79,33 +79,50 @@ const fieldsCtxKey fieldsCtxKeyType = "fields"
 
 type logFields struct {
 	fields []zap.Field
+	parent *logFields
 }
 
 func fieldsFromContext(ctx context.Context) []zap.Field {
-	if ctxFields, ok := ctx.Value(fieldsCtxKey).(*logFields); ok {
-		return ctxFields.fields
+	node, ok := ctx.Value(fieldsCtxKey).(*logFields)
+	if !ok || node == nil {
+		return nil
 	}
-	return nil
+
+	// calculate total length to avoid reallocations
+	total := 0
+	for n := node; n != nil; n = n.parent {
+		total += len(n.fields)
+	}
+
+	// collect fields from root to current (reverse the chain)
+	result := make([]zap.Field, total)
+	pos := total
+	for n := node; n != nil; n = n.parent {
+		pos -= len(n.fields)
+		copy(result[pos:], n.fields)
+	}
+	return result
 }
 
 func WithField(ctx context.Context, field zap.Field) context.Context {
-	ctxFields, ok := ctx.Value(fieldsCtxKey).(*logFields)
-	if !ok || ctxFields == nil {
-		ctxFields = &logFields{}
-		ctx = context.WithValue(ctx, fieldsCtxKey, ctxFields)
-	}
-	ctxFields.fields = append(ctxFields.fields, field)
-	return ctx
+	parent, _ := ctx.Value(fieldsCtxKey).(*logFields)
+	return context.WithValue(ctx, fieldsCtxKey, &logFields{
+		fields: []zap.Field{field},
+		parent: parent,
+	})
 }
 
 func WithFields(ctx context.Context, fields ...zap.Field) context.Context {
-	ctxFields, ok := ctx.Value(fieldsCtxKey).(*logFields)
-	if !ok || ctxFields == nil {
-		ctxFields = &logFields{}
-		ctx = context.WithValue(ctx, fieldsCtxKey, ctxFields)
+	if len(fields) == 0 {
+		return ctx
 	}
-	ctxFields.fields = append(ctxFields.fields, fields...)
-	return ctx
+	parent, _ := ctx.Value(fieldsCtxKey).(*logFields)
+	copied := make([]zap.Field, len(fields))
+	copy(copied, fields)
+	return context.WithValue(ctx, fieldsCtxKey, &logFields{
+		fields: copied,
+		parent: parent,
+	})
 }
 
 func RegisterLogHandler(handler LogHandler) {
