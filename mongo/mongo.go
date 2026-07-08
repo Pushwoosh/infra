@@ -64,6 +64,7 @@ func (cont *Container) Connect(appName string, name string, cfg *ConnectionConfi
 	initLoggingMonitor(mb, cfg.QueryLog)
 
 	opts.SetMonitor(mb.Build())
+	opts.SetPoolMonitor(newPoolMonitor(appName))
 
 	// connect and ping
 	client, err := mongo.Connect(opts)
