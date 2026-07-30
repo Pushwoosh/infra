@@ -1,6 +1,6 @@
 module github.com/pushwoosh/infra
 
-go 1.24
+go 1.25.4
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.33.0

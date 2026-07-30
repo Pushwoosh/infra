@@ -13,6 +13,20 @@ that holds named connections to the database.
 
 To create a new connection, call `Connect` method. To fetch a connection, call `Get` method.
 
+Every such library also has an `Init` helper that replaces the `initRedises`/`initGrpcs`/... boilerplate
+copy-pasted into every service `main`. It creates a container, connects all configured connections in a
+background goroutine registered in the given wait group, and dies with `log.Fatal` on any failure:
+
+```go
+wg := &sync.WaitGroup{}
+var (
+    redises = infraredis.Init(wg, cfg.RedisConnections)
+    grpcs   = infragrpcclient.Init(wg, cfg.GRPCConnections)
+    mongos  = inframongo.Init(wg, config.AppName, cfg.MongoConnections)
+)
+wg.Wait()
+```
+
 ## Databases
 - [Postgres](postgres) - based on jackc/pgx
 - [Clickhouse](clickhouse)
