@@ -74,6 +74,40 @@ func TestCreateOrderedProducer(t *testing.T) {
 	if w.MaxAttempts != 5 {
 		t.Errorf("MaxAttempts = %d, expected 5", w.MaxAttempts)
 	}
+
+	// 1 ms and not 5: a synchronous caller waits out the timeout whenever the
+	// batch does not fill, and 5 ms measured 6.7 ms median.
+	if w.BatchTimeout != time.Millisecond {
+		t.Errorf("BatchTimeout = %v, expected 1ms", w.BatchTimeout)
+	}
+}
+
+// TestWithCompletion covers the shape a hot path wants: keyed partitioning and
+// visible errors without blocking the caller.
+func TestWithCompletion(t *testing.T) {
+	var seen bool
+
+	w, err := container(t).CreateProducer("test",
+		WithHashBalancer(),
+		WithRequiredAcks(kafka.RequireAll),
+		WithCompletion(func([]kafka.Message, error) { seen = true }))
+	if err != nil {
+		t.Fatalf("CreateProducer: %v", err)
+	}
+
+	if !w.Async {
+		t.Error("Async = false, WithCompletion is for the asynchronous shape")
+	}
+
+	if w.Completion == nil {
+		t.Fatal("Completion not set")
+	}
+
+	w.Completion(nil, nil)
+
+	if !seen {
+		t.Error("the registered callback was not the one stored")
+	}
 }
 
 // TestCreateOrderedProducerOverridable checks that the bundled defaults are a

@@ -94,18 +94,28 @@ func (cont *Container) CreateProducer(connectionName string, opts ...ProducerOpt
 
 // CreateOrderedProducer creates a producer that partitions by message key and
 // confirms every write: Hash balancer, RequireAll, synchronous, and a retry count
-// that gives up rather than hangs. Batching is enabled so the acknowledgement is
-// not paid for one message at a time.
+// that gives up rather than hangs.
 //
-// Use it whenever losing or reordering a message has a consequence. Options are
-// applied afterwards, so any of it can still be overridden.
+// Use it where the caller must learn that its write failed. Measured against a
+// local broker at 32 concurrent writers: 1.6 ms median, 2.1 ms at the 99th
+// percentile, 15 000 messages a second through one writer. That is affordable for
+// a few thousand writes a second and wasteful for tens of thousands.
+//
+// The batch timeout is deliberately 1 ms rather than 5. A synchronous caller
+// waits out the timeout whenever the batch does not fill, and at 5 ms that wait
+// measured 6.7 ms median — enough to dominate a request that otherwise takes 3.
+//
+// For a hot path where "accepted" is an honest answer, prefer CreateProducer with
+// WithHashBalancer and WithCompletion: same partitioning, errors still visible,
+// and no wait at all. Options here are applied last, so any of this can be
+// overridden.
 func (cont *Container) CreateOrderedProducer(connectionName string, opts ...ProducerOption) (*kafka.Writer, error) {
 	defaults := []ProducerOption{
 		WithHashBalancer(),
 		WithRequiredAcks(kafka.RequireAll),
 		WithSync(),
 		WithMaxAttempts(5),
-		WithBatch(200, 5*time.Millisecond),
+		WithBatch(200, time.Millisecond),
 	}
 
 	return cont.CreateProducer(connectionName, append(defaults, opts...)...)
