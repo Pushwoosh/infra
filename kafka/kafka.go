@@ -52,8 +52,22 @@ func getLogErrorFunc() func(msg string, a ...interface{}) {
 	}
 }
 
-// CreateProducer creates a new kafka producer by a connection name
-func (cont *Container) CreateProducer(connectionName string) (*kafka.Writer, error) {
+// CreateProducer creates a new kafka producer by a connection name.
+//
+// The writer it returns is deliberately fire-and-forget, and that is worth
+// stating plainly because the defaults are not obvious from the call site:
+//
+//   - no Balancer, so kafka-go partitions round-robin and the message key is
+//     ignored — a keyed write does NOT keep a key's messages together;
+//   - no RequiredAcks, whose zero value is RequireNone, so the broker confirms
+//     nothing;
+//   - Async: true, which per the library's documentation means write errors are
+//     discarded.
+//
+// That is the right shape for a fan-out stream where a lost message costs
+// nothing. It is the wrong shape whenever the order or the durability of a write
+// matters — use CreateOrderedProducer, or pass the options in options.go.
+func (cont *Container) CreateProducer(connectionName string, opts ...ProducerOption) (*kafka.Writer, error) {
 	cont.mu.Lock()
 	defer cont.mu.Unlock()
 
@@ -62,21 +76,54 @@ func (cont *Container) CreateProducer(connectionName string) (*kafka.Writer, err
 		return nil, errors.Errorf("invalid connection name: \"%s\"", connectionName)
 	}
 
-	return &kafka.Writer{
+	w := &kafka.Writer{
 		Addr:                   kafka.TCP(kafkaConfig.Address),
 		AllowAutoTopicCreation: true,
 		Async:                  true,
 		MaxAttempts:            1000,
 		Logger:                 kafka.LoggerFunc(getLogFunc()),
 		ErrorLogger:            kafka.LoggerFunc(getLogErrorFunc()),
-	}, nil
+	}
+
+	for _, opt := range opts {
+		opt(w)
+	}
+
+	return w, nil
 }
 
-// CreateConsumer creates a new kafka consumer by a connection name and subscribes it to a given topic
+// CreateOrderedProducer creates a producer that partitions by message key and
+// confirms every write: Hash balancer, RequireAll, synchronous, and a retry count
+// that gives up rather than hangs. Batching is enabled so the acknowledgement is
+// not paid for one message at a time.
+//
+// Use it whenever losing or reordering a message has a consequence. Options are
+// applied afterwards, so any of it can still be overridden.
+func (cont *Container) CreateOrderedProducer(connectionName string, opts ...ProducerOption) (*kafka.Writer, error) {
+	defaults := []ProducerOption{
+		WithHashBalancer(),
+		WithRequiredAcks(kafka.RequireAll),
+		WithSync(),
+		WithMaxAttempts(5),
+		WithBatch(200, 5*time.Millisecond),
+	}
+
+	return cont.CreateProducer(connectionName, append(defaults, opts...)...)
+}
+
+// CreateConsumer creates a new kafka consumer by a connection name and subscribes it to a given topic.
+//
+// Offsets are committed every 5 seconds, and Reader.ReadMessage commits as it
+// reads. That suits a consumer that finishes with a message before asking for the
+// next one. It does not suit one that may hold a message unfinished — a reorder
+// buffer, a retry queue, a batch still filling — because such a message is
+// committed while still in flight and will not be redelivered after a rebalance.
+// For that, pass WithManualCommit and read with FetchMessage.
 func (cont *Container) CreateConsumer(
 	connectionName string,
 	consumerGroup string,
 	topics []string,
+	opts ...ConsumerOption,
 ) (*kafka.Reader, error) {
 	cont.mu.Lock()
 	defer cont.mu.Unlock()
@@ -93,7 +140,7 @@ func (cont *Container) CreateConsumer(
 		offset = kafka.LastOffset
 	}
 
-	return kafka.NewReader(kafka.ReaderConfig{
+	cfg := kafka.ReaderConfig{
 		Brokers:        []string{kafkaConfig.Address},
 		GroupID:        consumerGroup,
 		GroupTopics:    topics,
@@ -103,5 +150,11 @@ func (cont *Container) CreateConsumer(
 		Logger:         kafka.LoggerFunc(getLogFunc()),
 		ErrorLogger:    kafka.LoggerFunc(getLogErrorFunc()),
 		MaxAttempts:    1000,
-	}), nil
+	}
+
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	return kafka.NewReader(cfg), nil
 }
