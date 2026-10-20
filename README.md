@@ -47,6 +47,7 @@ wg.Wait()
 ## Other
 - [GRPC Client](grpc/grpcclient) - has same interface as database and broker libraries
 - [Log](log) - zap logger wrapper
+- [Redact](log/redact) - masks secrets in a config before it is logged, guessing them by key names and value shapes
 - [Netretry](netretry) - retry lib for temporary network errors
 - [Must](must) - helper function to panic on error
 - [Prometheus pushgateway client](prompushgw) - client for pushgateway, mostly used in cronjobs
