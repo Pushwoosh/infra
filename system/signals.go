@@ -80,8 +80,14 @@ func (s *Signals) restartSignalling() {
 		signals = append(signals, sig)
 	}
 
-	signal.Notify(s.interrupt, signals...)
-	signal.Ignore(s.ignore...)
+	// With no arguments Notify relays and Ignore drops every signal, SIGCHLD included: exec.Cmd.Wait then fails with ECHILD.
+	if len(signals) > 0 {
+		signal.Notify(s.interrupt, signals...)
+	}
+
+	if len(s.ignore) > 0 {
+		signal.Ignore(s.ignore...)
+	}
 }
 
 // Add - adds signal handler
