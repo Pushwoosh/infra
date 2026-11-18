@@ -4,10 +4,17 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/pkg/errors"
+	infralog "github.com/pushwoosh/infra/log"
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 )
+
+// connectRetryMaxInterval caps the delay between connection attempts.
+const connectRetryMaxInterval = 5 * time.Second
 
 // Container is a simple container for holding named redis connections.
 type Container struct {
@@ -45,7 +52,8 @@ func (cont *Container) Connect(name string, cfg *ConnectionConfig) error {
 		conn = redis.NewClient(opts.Simple())
 	}
 
-	if err := conn.Ping(context.Background()).Err(); err != nil {
+	if err := ping(name, conn, cfg.GetConnectRetryTimeout()); err != nil {
+		_ = conn.Close()
 		return errors.Wrap(err, "cannot create redis connection")
 	}
 
@@ -56,6 +64,31 @@ func (cont *Container) Connect(name string, cfg *ConnectionConfig) error {
 	cont.cfg[name] = *cfg
 
 	return nil
+}
+
+// ping checks that redis is reachable. Failed attempts are retried with
+// exponential backoff until retryTimeout elapses; the last error is returned then.
+func ping(name string, conn redis.UniversalClient, retryTimeout time.Duration) error {
+	attempt := func() error {
+		return conn.Ping(context.Background()).Err()
+	}
+
+	if retryTimeout <= 0 {
+		return attempt()
+	}
+
+	policy := backoff.NewExponentialBackOff(
+		backoff.WithMaxInterval(connectRetryMaxInterval),
+		backoff.WithMaxElapsedTime(retryTimeout),
+	)
+
+	return backoff.RetryNotify(attempt, policy, func(err error, next time.Duration) {
+		infralog.Warn("redis is unavailable, retrying",
+			zap.String("connection", name),
+			zap.Duration("retry_in", next),
+			zap.Error(err),
+		)
+	})
 }
 
 // Get gets connection from a container

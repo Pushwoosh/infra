@@ -6,6 +6,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+const defaultConnectRetryTimeout = 30 * time.Second
+
 type ConnectionsConfig map[string]*ConnectionConfig
 
 type ConnectionConfig struct {
@@ -25,6 +27,10 @@ type ConnectionConfig struct {
 	// Read and write timeouts. Default values using getters: -1 (no timeout)
 	ReadTimeout  *time.Duration `mapstructure:"read_timeout"`
 	WriteTimeout *time.Duration `mapstructure:"write_timeout"`
+
+	// How long Connect keeps retrying a failed connection attempt before giving up.
+	// Default value using getter: 30s. Zero or negative value disables retries.
+	ConnectRetryTimeout *time.Duration `mapstructure:"connect_retry_timeout"`
 }
 
 func (c *ConnectionsConfig) Validate() error {
@@ -62,6 +68,14 @@ func (c *ConnectionConfig) GetWriteTimeout() time.Duration {
 	}
 
 	return *c.WriteTimeout
+}
+
+func (c *ConnectionConfig) GetConnectRetryTimeout() time.Duration {
+	if c.ConnectRetryTimeout == nil {
+		return defaultConnectRetryTimeout
+	}
+
+	return *c.ConnectRetryTimeout
 }
 
 func (c *ConnectionConfig) Validate() error {

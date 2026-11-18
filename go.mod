@@ -4,6 +4,7 @@ go 1.25.4
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.33.0
+	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/dlmiddlecote/sqlstats v1.0.2
 	github.com/getsentry/sentry-go v0.31.1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
@@ -28,7 +29,6 @@ require (
 	github.com/ClickHouse/ch-go v0.65.1 // indirect
 	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/desertbit/timer v1.0.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
