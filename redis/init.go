@@ -9,7 +9,8 @@ import (
 
 // Init creates a container and connects every enabled connection from the config in background.
 // The caller must wait on the wait group before using the returned container.
-// Connection failures are fatal.
+// Connection attempts are retried (see ConnectionConfig.ConnectRetryTimeout);
+// a connection that still fails after that is fatal.
 func Init(wg *sync.WaitGroup, cfg ConnectionsConfig) *Container {
 	cont := NewContainer()
 
