@@ -100,3 +100,62 @@ func TestUnmarshalable(t *testing.T) {
 		t.Fatalf("got %v", got)
 	}
 }
+
+func TestAuthCredentials(t *testing.T) {
+	const apiToken = "5GjZOey3RVCiSoZCbrJ0NtqaTK5p78gQImfbw00AnR8PkDLz3AySmWZod3cLycWAuhU75wJ7iOP2lI7u"
+
+	tests := map[string]struct {
+		in   any
+		keep []string
+	}{
+		"auth key in a map": {
+			in:   map[string]any{"request": map[string]any{"application": "APP-1", "auth": "short-token"}},
+			keep: []string{`"application":"APP-1"`, `"auth":"[redacted]"`},
+		},
+		"authorization header": {
+			in:   map[string][]string{"Authorization": {"Token " + apiToken}, "Content-Type": {"application/json"}},
+			keep: []string{"application/json"},
+		},
+		"auth scheme inside a string": {
+			in:   "request failed, header Token " + apiToken,
+			keep: []string{"request failed, header Token [redacted]"},
+		},
+		"json body logged as a string": {
+			in:   `{"request":{"application":"APP-1","auth":"` + apiToken + `","content":"hi"}}`,
+			keep: []string{`\"application\":\"APP-1\"`, `\"auth\":\"[redacted]\"`, `\"content\":\"hi\"`},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := render(t, tt.in)
+
+			if strings.Contains(got, apiToken) || strings.Contains(got, "short-token") {
+				t.Fatalf("secret leaked: %s", got)
+			}
+
+			for _, keep := range tt.keep {
+				if !strings.Contains(got, keep) {
+					t.Errorf("expected %q to survive: %s", keep, got)
+				}
+			}
+		})
+	}
+}
+
+func TestAuthLookalikesSurvive(t *testing.T) {
+	got := render(t, map[string]string{
+		"author":        "Jane",
+		"oauthProvider": "google",
+		"message":       "token expired, basic auth disabled",
+		"body":          `{"password":"","user":"u"}`,
+	})
+
+	for _, keep := range []string{
+		`"author":"Jane"`, `"oauthProvider":"google"`, "token expired, basic auth disabled", `\"password\":\"\"`,
+	} {
+		if !strings.Contains(got, keep) {
+			t.Errorf("expected %q to survive: %s", keep, got)
+		}
+	}
+}

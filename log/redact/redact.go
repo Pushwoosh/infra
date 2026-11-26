@@ -31,10 +31,15 @@ var (
 		"privatekey", "signingkey", "salt", "cookie", "bearer",
 	}
 
+	// Matched whole: as substrings they would also hit keys like author or oauthprovider.
+	secretKeys = map[string]bool{"auth": true, "authorization": true, "proxyauthorization": true}
+
 	pemBlock    = regexp.MustCompile(`(?s)-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----`)
 	jwt         = regexp.MustCompile(`eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}`)
 	urlUserinfo = regexp.MustCompile(`([A-Za-z][A-Za-z0-9+.-]*://)([^/@\s:]*)(:[^/@\s]*)?@`)
 	kvSecret    = regexp.MustCompile(`(?i)\b(password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key)=([^&\s;]+)`)
+	authScheme  = regexp.MustCompile(`(?i)\b(bearer|token|basic)\s+[A-Za-z0-9._~+/=-]{16,}`)
+	jsonSecret  = regexp.MustCompile(`(?i)("(?:auth|authorization|password|passwd|secret|token|api[_-]?key|access[_-]?key)"\s*:\s*)"[^"]+"`)
 )
 
 // Field returns a zap field that logs v as JSON with secrets masked.
@@ -63,6 +68,9 @@ func Value(v any) any {
 func isSecretKey(key string) bool {
 	k := strings.ToLower(key)
 	k = strings.NewReplacer("_", "", "-", "", ".", "", " ", "").Replace(k)
+	if secretKeys[k] {
+		return true
+	}
 
 	for _, part := range secretKeyParts {
 		if strings.Contains(k, part) {
@@ -105,6 +113,8 @@ func scrub(s string) string {
 	s = pemBlock.ReplaceAllString(s, mask)
 	s = jwt.ReplaceAllString(s, mask)
 	s = kvSecret.ReplaceAllString(s, "$1="+mask)
+	s = authScheme.ReplaceAllString(s, "$1 "+mask)
+	s = jsonSecret.ReplaceAllString(s, `$1"`+mask+`"`)
 	s = urlUserinfo.ReplaceAllStringFunc(s, func(m string) string {
 		p := urlUserinfo.FindStringSubmatch(m)
 		if p[3] != "" {
